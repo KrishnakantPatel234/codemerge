@@ -1,22 +1,23 @@
 import { prisma } from "../config/prisma";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken"
 
 interface RegisterUserInput{
     email : string;
-    username : string;
+    displayName : string;
     password : string;
 }
 
-export const registerUser = async ({ email, username,password} : RegisterUserInput) => {
+interface LoginUserInput{
+    email : string;
+    password : string;
+}
+
+export const registerUser = async ({ email, displayName ,password} : RegisterUserInput) => {
     // checking existing user
 
     const existingUser = await prisma.user.findFirst({
-        where : {
-            OR : [
-                {email},
-                {username}
-            ]
-        }
+        where : {email}
     });
 
     if(existingUser){
@@ -30,7 +31,7 @@ export const registerUser = async ({ email, username,password} : RegisterUserInp
     const user = await prisma.user.create({
         data : {
             email,
-            username,
+            displayName,
             passwordHash : hashedPassword,
         },
     });
@@ -38,4 +39,47 @@ export const registerUser = async ({ email, username,password} : RegisterUserInp
     return user;
 }
 
+export const loginUser = async ({email , password} : LoginUserInput) => {
+    
+    // checking user exists
+    const user = await prisma.user.findUnique({
+        where : {
+            email,
+        },
+    });
 
+    if(!user || !user.passwordHash){
+        throw new Error("Invalid credentials");
+    }
+
+    // comparer passwords
+    const isPasswordCorrect = await bcrypt.compare(
+        password,
+        user.passwordHash
+    );
+
+    if(!isPasswordCorrect){
+        throw new Error("Invalid credentials");
+    }
+
+    // generate JWT token
+    const token = jwt.sign(
+        {
+            userId : user.id,
+            email : user.email
+        },
+        process.env.JWT_SECRET as string,
+        {
+            expiresIn : "3d"
+        }
+    )
+    
+    return {
+        token,
+        user : {
+            id : user.id,
+            displayName : user.displayName,
+            email : user.email
+        },
+    };
+}
