@@ -2,6 +2,8 @@ import { prisma } from "../config/prisma";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken"
 
+import {generateToken}  from "../utils/generateToken"
+
 interface RegisterUserInput{
     email : string;
     displayName : string;
@@ -13,10 +15,12 @@ interface LoginUserInput{
     password : string;
 }
 
+const SALT_ROUNDS = 10;
+
 export const registerUser = async ({ email, displayName ,password} : RegisterUserInput) => {
     // checking existing user
 
-    const existingUser = await prisma.user.findFirst({
+    const existingUser = await prisma.user.findUnique({
         where : {email}
     });
 
@@ -25,7 +29,7 @@ export const registerUser = async ({ email, displayName ,password} : RegisterUse
     }
 
     // Password hashing
-    const hashedPassword = await bcrypt.hash(password ,10);
+    const hashedPassword = await bcrypt.hash(password ,SALT_ROUNDS);
 
     // Creating User
     const user = await prisma.user.create({
@@ -36,7 +40,16 @@ export const registerUser = async ({ email, displayName ,password} : RegisterUse
         },
     });
 
-    return user;
+    const token = generateToken(user.id, user.email);
+
+    return {
+        token,
+        user: {
+            id: user.id,
+            email: user.email,
+            displayName: user.displayName
+        }
+    }
 }
 
 export const loginUser = async ({email , password} : LoginUserInput) => {
@@ -63,16 +76,7 @@ export const loginUser = async ({email , password} : LoginUserInput) => {
     }
 
     // generate JWT token
-    const token = jwt.sign(
-        {
-            userId : user.id,
-            email : user.email
-        },
-        process.env.JWT_SECRET as string,
-        {
-            expiresIn : "3d"
-        }
-    )
+    const token = generateToken(user.id , user.email);
     
     return {
         token,
