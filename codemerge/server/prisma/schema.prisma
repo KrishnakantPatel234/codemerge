@@ -16,6 +16,103 @@ model User {
     id           String   @id @default(uuid())
     email        String   @unique
     displayName  String
-    passwordHash String?
+    passwordHash String
     createdAt    DateTime @default(now())
+
+    ownedProjects      Project[]
+    memberships        ProjectMember[]
+    sentInvitations    Invitation[]
+    collaborators      CollaboratorHistory[] @relation("UserCollab")
+    collaboratedWith   CollaboratorHistory[] @relation("Collaborator")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  members     ProjectMember[]
+  files       File[]
+  invitations Invitation[]
+  createdAt   DateTime @default(now())
+}
+
+enum Role {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+model ProjectMember {
+  id         String   @id @default(uuid())
+  userId     String
+  projectId  String
+  role       Role     @default(EDITOR)
+
+  user        User     @relation(fields: [userId], references: [id])
+  project     Project  @relation(fields: [projectId], references: [id])
+
+  @@unique([userId, projectId])
+}
+
+enum FileType {
+  FILE
+  FOLDER
+}
+
+model File {
+  id         String   @id @default(uuid())
+
+  name       String
+  content    String?
+
+  type       FileType
+
+  projectId  String
+  parentId   String?
+
+  project     Project  @relation(fields: [projectId], references: [id])
+
+  parent      File?    @relation("FileTree", fields: [parentId], references: [id])
+
+  children    File[]   @relation("FileTree")
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Invitation {
+  id            String   @id @default(uuid())
+
+  projectId     String
+
+  senderId      String
+
+  receiverEmail String
+
+  status        InviteStatus @default(PENDING)
+
+  createdAt     DateTime @default(now())
+
+  project       Project  @relation(fields: [projectId], references: [id])
+
+  sender        User     @relation(fields: [senderId], references: [id])
+}
+
+model CollaboratorHistory {
+  id             String   @id @default(uuid())
+
+  userId         String
+  collaboratorId String
+
+  lastWorkedAt   DateTime @default(now())
+
+  user           User @relation("UserCollab", fields: [userId], references: [id])
+
+  collaborator   User @relation("Collaborator", fields: [collaboratorId], references: [id])
+
+  @@unique([userId, collaboratorId])
 }
